@@ -36,6 +36,35 @@ void cg::renderer::rasterization_renderer::init()
 			settings->width, settings->height);
 	rasterizer->set_render_target(render_target, depth_buffer);
 }
+
+void cg::renderer::rasterization_renderer::applyFishEyeEffect(float distortionFactor)
+{
+	// cg::resource<cg::unsigned_color>& image, int width, int height,
+	float centerX = static_cast<float>(settings->width) / 2.0f;
+	float centerY = static_cast<float>(settings->height) / 2.0f;
+
+	cg::resource<cg::unsigned_color> oldImage = *render_target;
+	rasterizer->clear_render_target({111, 5, 243});
+
+	for (unsigned y = 0; y < settings->height; ++y) {
+		for (unsigned x = 0; x < settings->width; ++x) {
+			float dx = static_cast<float>(x) - centerX;
+			float dy = static_cast<float>(y) - centerY;
+			float distance = std::sqrt(dx * dx + dy * dy);
+
+			float distortion = distance / distortionFactor;
+
+			auto nx = static_cast<size_t>(centerX + dx * distortion);
+			auto ny = static_cast<size_t>(centerY + dy * distortion);
+
+			if (nx < settings->width && ny < settings->height) {
+				render_target->item(x, y) = oldImage.item(nx, ny);
+			}
+		}
+	}
+}
+
+
 void cg::renderer::rasterization_renderer::render()
 {
 	float4x4 matrix = mul(
@@ -72,6 +101,10 @@ void cg::renderer::rasterization_renderer::render()
 	std::chrono::duration<float, std::milli> rendering_duration = stop - start;
 	std::cout << "Rendering took " << rendering_duration.count() << "ms\n";
 
+	float eps = 1.e-6;
+	if (!(settings->fish_eye - eps <= 0 && 0 <= settings->fish_eye + eps)) { // fish_eye == 0 is prohibited. Plus it is default value.
+		applyFishEyeEffect(settings->fish_eye);
+	}
 	utils::save_resource(*render_target, settings->result_path);
 }
 

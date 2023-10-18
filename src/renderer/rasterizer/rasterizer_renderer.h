@@ -13,6 +13,7 @@ namespace cg::renderer
 
 		virtual void update();
 		virtual void render();
+		void applyFishEyeEffect(float distortionFactor);
 
 	protected:
 		std::shared_ptr<cg::resource<cg::unsigned_color>> render_target;
