@@ -21,13 +21,13 @@ jobs:
           .\build\Release\Rasterization.exe --model_path models\z_test.obj --result_path rasterization_z_test.png
           .\build\Release\Rasterization.exe --model_path models\CornellBox-Original.obj --result_path rasterization_CornellBox-Original.png
           
-          .\build\Release\Rasterization.exe --model_path models\cube.obj --result_path rasterization_cube.png --fish_eye 100
-          .\build\Release\Rasterization.exe --model_path models\z_test.obj --result_path rasterization_z_test.png --fish_eye 23
-          .\build\Release\Rasterization.exe --model_path models\CornellBox-Original.obj --result_path rasterization_CornellBox-Original.png --fish_eye 0.2
+          .\build\Release\Rasterization.exe --model_path models\cube.obj --result_path rasterization_cube_fish_eye_100.png --fish_eye 100
+          .\build\Release\Rasterization.exe --model_path models\z_test.obj --result_path rasterization_z_test_fish_eye_23.png --fish_eye 23
+          .\build\Release\Rasterization.exe --model_path models\CornellBox-Original.obj --result_path rasterization_CornellBox-Original_fish_eye_0_2.png --fish_eye 0.2
           
-          .\build\Release\Rasterization.exe --model_path models\cube.obj --result_path rasterization_cube.png --fish_eye -100
-          .\build\Release\Rasterization.exe --model_path models\z_test.obj --result_path rasterization_z_test.png --fish_eye -142
-          .\build\Release\Rasterization.exe --model_path models\CornellBox-Original.obj --result_path rasterization_CornellBox-Original.png --fish_eye -0.123
+          .\build\Release\Rasterization.exe --model_path models\cube.obj --result_path rasterization_cube_fish_eye_-100.png --fish_eye -100
+          .\build\Release\Rasterization.exe --model_path models\z_test.obj --result_path rasterization_z_test_fish_eye_-142.png --fish_eye -142
+          .\build\Release\Rasterization.exe --model_path models\CornellBox-Original.obj --result_path rasterization_CornellBox-Original_fish_eye_-0_123.png --fish_eye -0.123
       - name: Upload rasterization images
         uses: actions/upload-artifact@v3
         with:
