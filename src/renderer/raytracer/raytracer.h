@@ -151,7 +151,7 @@ namespace cg::renderer
 	inline void raytracer<VB, RT>::clear_render_target(
 			const RT& in_clear_value)
 	{
-		for(size_t i = 0; i < render_target->get_number_of_elements(); ++i) {
+		for (size_t i = 0; i < render_target->get_number_of_elements(); ++i) {
 			render_target->item(i) = in_clear_value;
 		}
 		// TODO Lab: 2.06 Add `history` resource in `raytracer` class
@@ -176,7 +176,7 @@ namespace cg::renderer
 			auto& index_buffer = index_buffers[i];
 			auto& vertex_buffer = vertex_buffers[i];
 			size_t index = 0;
-			while(index < index_buffer->get_number_of_elements()) {
+			while (index < index_buffer->get_number_of_elements()) {
 				triangle<VB> triangle(
 						vertex_buffer->item(index_buffer->item(index++)),
 						vertex_buffer->item(index_buffer->item(index++)),
@@ -193,8 +193,8 @@ namespace cg::renderer
 			float3 right, float3 up, size_t depth, size_t accumulation_num)
 	{
 #pragma omp parallel for
-		for(int x = 0; x < width; ++x) {
-			for(int y = 0; y < height; ++y) {
+		for (int x = 0; x < width; ++x) {
+			for (int y = 0; y < height; ++y) {
 				float u = (2.f * x) / static_cast<float>(width) - 1.f;
 				float v = (2.f * y) / static_cast<float>(height) - 1.f;
 				u *= static_cast<float>(width) / static_cast<float>(height);
@@ -222,7 +222,7 @@ namespace cg::renderer
 		closest_hit_payload.t = max_t;
 		const triangle<VB>* closest_triangle = nullptr;
 
-		for(auto& triangle : triangles) {
+		for (auto& triangle: triangles) {
 			payload payload_var = intersection_shader(triangle, ray);
 
 			if (payload_var.t > min_t && payload_var.t < closest_hit_payload.t) {
