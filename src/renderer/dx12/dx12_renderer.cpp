@@ -34,8 +34,8 @@ void cg::renderer::dx12_renderer::init()
 								 static_cast<float>(settings->height));
 
 	scissor_rect = CD3DX12_RECT(0, 0,
-								 static_cast<LONG>(settings->width),
-								 static_cast<LONG>(settings->height));
+								static_cast<LONG>(settings->width),
+								static_cast<LONG>(settings->height));
 
 	load_pipeline();
 	load_assets();
@@ -71,8 +71,7 @@ ComPtr<IDXGIFactory4> cg::renderer::dx12_renderer::get_dxgi_factory()
 #endif
 	ComPtr<IDXGIFactory4> dxgi_factory;
 	THROW_IF_FAILED(
-			CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&dxgi_factory))
-			);
+			CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&dxgi_factory)));
 	return dxgi_factory;
 }
 
@@ -87,8 +86,8 @@ void cg::renderer::dx12_renderer::initialize_device(ComPtr<IDXGIFactory4>& dxgi_
 	OutputDebugString(L"\n");
 #endif
 	THROW_IF_FAILED(D3D12CreateDevice(hardware_adapter.Get(),
-					D3D_FEATURE_LEVEL_11_0,
-					IID_PPV_ARGS(&device)));
+									  D3D_FEATURE_LEVEL_11_0,
+									  IID_PPV_ARGS(&device)));
 }
 
 void cg::renderer::dx12_renderer::create_direct_command_queue()
@@ -118,13 +117,11 @@ void cg::renderer::dx12_renderer::create_swap_chain(ComPtr<IDXGIFactory4>& dxgi_
 			&swap_chain_desc,
 			nullptr,
 			nullptr,
-			&temp_swap_chain
-			));
+			&temp_swap_chain));
 
 	dxgi_factory->MakeWindowAssociation(
 			cg::utils::window::get_hwnd(),
-			DXGI_MWA_NO_ALT_ENTER
-			);
+			DXGI_MWA_NO_ALT_ENTER);
 	temp_swap_chain.As(&swap_chain);
 	frame_index = swap_chain->GetCurrentBackBufferIndex();
 }
@@ -139,8 +136,7 @@ void cg::renderer::dx12_renderer::create_render_target_views()
 		device->CreateRenderTargetView(
 				render_targets[i].Get(),
 				nullptr,
-				rtv_heap.get_cpu_descriptor_handle(i)
-				);
+				rtv_heap.get_cpu_descriptor_handle(i));
 
 		std::wstring name(L"Render target ");
 		name += std::to_wstring(i);
@@ -165,7 +161,7 @@ void cg::renderer::dx12_renderer::create_command_list()
 
 void cg::renderer::dx12_renderer::load_pipeline()
 {
-	ComPtr<IDXGIFactory4 > dxgi_factory = get_dxgi_factory();
+	ComPtr<IDXGIFactory4> dxgi_factory = get_dxgi_factory();
 	initialize_device(dxgi_factory);
 	create_direct_command_queue();
 	create_swap_chain(dxgi_factory);
@@ -180,25 +176,123 @@ D3D12_STATIC_SAMPLER_DESC cg::renderer::dx12_renderer::get_sampler_descriptor()
 
 void cg::renderer::dx12_renderer::create_root_signature(const D3D12_STATIC_SAMPLER_DESC* sampler_descriptors, UINT num_sampler_descriptors)
 {
-	// TODO Lab: 3.05 Create a descriptor table and a root signature
+	CD3DX12_ROOT_PARAMETER1 root_parameters[1];
+	CD3DX12_DESCRIPTOR_RANGE1 ranges[1];
+
+	ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
+				   1, 0, 0,
+				   D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+	root_parameters[0].InitAsDescriptorTable(1, &ranges[0],
+											 D3D12_SHADER_VISIBILITY_ALL);
+
+	D3D12_FEATURE_DATA_ROOT_SIGNATURE rs_feature_data{};
+	rs_feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+	if (FAILED(device->CheckFeatureSupport(
+				D3D12_FEATURE_ROOT_SIGNATURE,
+				&rs_feature_data,
+				sizeof(rs_feature_data)))) {
+		rs_feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+	}
+
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rs_desc;
+	rs_desc.Init_1_1(
+			_countof(root_parameters),
+			root_parameters,
+			num_sampler_descriptors,
+			sampler_descriptors,
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	ComPtr<ID3DBlob> signature, error;
+
+	HRESULT result = D3DX12SerializeVersionedRootSignature(&rs_desc,
+														   rs_feature_data.HighestVersion,
+														   &signature,
+														   &error);
+
+	if (FAILED(result)) {
+		OutputDebugStringA((char*) error->GetBufferPointer());
+		THROW_IF_FAILED(result);
+	}
+
+	THROW_IF_FAILED(device->CreateRootSignature(0,
+												signature->GetBufferPointer(),
+												signature->GetBufferSize(),
+												IID_PPV_ARGS(&root_signature)));
 }
 
 std::filesystem::path cg::renderer::dx12_renderer::get_shader_path(const std::string& shader_name)
 {
-	// TODO Lab: 3.05 Compile shaders
-	return "";
+	WCHAR buffer[MAX_PATH];
+	GetModuleFileName(nullptr, buffer, MAX_PATH);
+	return std::filesystem::path(buffer).parent_path() / shader_name;
 }
 
 ComPtr<ID3DBlob> cg::renderer::dx12_renderer::compile_shader(const std::filesystem::path& shader_path, const std::string& entrypoint, const std::string& target)
 {
-	// TODO Lab: 3.05 Compile shaders
-	return nullptr;
+	ComPtr<ID3DBlob> shader, error;
+	UINT compile_flags = 0;
+
+#ifdef _DEBUG
+	compile_flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+	HRESULT result = D3DCompileFromFile(
+			shader_path.wstring().c_str(),
+			nullptr,
+			nullptr,
+			entrypoint.c_str(),
+			target.c_str(),
+			compile_flags,
+			0,
+			&shader,
+			&error);
+
+	if (FAILED(result)) {
+		OutputDebugStringA((char*) error->GetBufferPointer());
+		THROW_IF_FAILED(result);
+	}
+	return shader;
 }
 
 void cg::renderer::dx12_renderer::create_pso(const std::string& shader_name)
 {
-	// TODO Lab: 3.05 Compile shaders
-	// TODO Lab: 3.05 Setup a PSO descriptor and create a PSO
+	ComPtr<ID3DBlob> vertex_shader = compile_shader(
+			get_shader_path(shader_name), "VSMain", "vs_5_0");
+	ComPtr<ID3DBlob> pixel_shader = compile_shader(
+			get_shader_path(shader_name), "PSMain", "ps_5_0");
+
+	D3D12_INPUT_ELEMENT_DESC input_descriptors[] = {
+			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+			 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+			 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+			 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+			 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"COLOR", 1, DXGI_FORMAT_R32G32B32_FLOAT,
+			 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"COLOR", 2, DXGI_FORMAT_R32G32B32_FLOAT,
+			 0, 56, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc{};
+	pso_desc.InputLayout = {input_descriptors, _countof(input_descriptors)};
+	pso_desc.pRootSignature = root_signature.Get();
+	pso_desc.VS = CD3DX12_SHADER_BYTECODE(vertex_shader.Get());
+	pso_desc.PS = CD3DX12_SHADER_BYTECODE(pixel_shader.Get());
+	pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	pso_desc.RasterizerState.FrontCounterClockwise = TRUE;
+	pso_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	pso_desc.DepthStencilState.DepthEnable = FALSE;
+	pso_desc.DepthStencilState.StencilEnable = FALSE;
+	pso_desc.SampleMask = UINT_MAX;
+	pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	pso_desc.NumRenderTargets = 1;
+	pso_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	pso_desc.SampleDesc.Count = 1;
+
+	THROW_IF_FAILED(device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline_state)));
 }
 
 void cg::renderer::dx12_renderer::create_resource_on_upload_heap(ComPtr<ID3D12Resource>& resource, UINT size, const std::wstring& name)
@@ -209,8 +303,7 @@ void cg::renderer::dx12_renderer::create_resource_on_upload_heap(ComPtr<ID3D12Re
 			&CD3DX12_RESOURCE_DESC::Buffer(size),
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(&resource)
-			));
+			IID_PPV_ARGS(&resource)));
 
 	if (!name.empty()) {
 		resource->SetName(name.c_str());
@@ -227,8 +320,7 @@ void cg::renderer::dx12_renderer::copy_data(const void* buffer_data, UINT buffer
 	CD3DX12_RANGE read_range(0, 0);
 	THROW_IF_FAILED(
 			destination_resource->Map(0, &read_range,
-									  reinterpret_cast<void **>(&buffer_data_begin))
-			);
+									  reinterpret_cast<void**>(&buffer_data_begin)));
 
 	memcpy(buffer_data_begin, buffer_data, buffer_size);
 	destination_resource->Unmap(0, 0);
@@ -244,7 +336,7 @@ D3D12_VERTEX_BUFFER_VIEW cg::renderer::dx12_renderer::create_vertex_buffer_view(
 	view.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
 	view.StrideInBytes = sizeof(vertex);
 	view.SizeInBytes = vertex_buffer_size;
-	return view;	
+	return view;
 }
 
 D3D12_INDEX_BUFFER_VIEW cg::renderer::dx12_renderer::create_index_buffer_view(const ComPtr<ID3D12Resource>& index_buffer, const UINT index_buffer_size)
@@ -253,7 +345,7 @@ D3D12_INDEX_BUFFER_VIEW cg::renderer::dx12_renderer::create_index_buffer_view(co
 	view.BufferLocation = index_buffer->GetGPUVirtualAddress();
 	view.SizeInBytes = index_buffer_size;
 	view.Format = DXGI_FORMAT_R32_UINT;
-	return view;	
+	return view;
 }
 
 void cg::renderer::dx12_renderer::create_shader_resource_view(const ComPtr<ID3D12Resource>& texture, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handler)
@@ -271,15 +363,15 @@ void cg::renderer::dx12_renderer::create_constant_buffer_view(const ComPtr<ID3D1
 
 void cg::renderer::dx12_renderer::load_assets()
 {
-	// TODO Lab: 3.05 Create a descriptor table and a root signature
-	// TODO Lab: 3.05 Setup a PSO descriptor and create a PSO
+	create_root_signature(nullptr, 0);
+	create_pso("shaders.hlsl");
 	// TODO Lab: 3.06 Create command allocators and a command list
 
 	cbv_srv_heap.create_heap(
-						device,
-						D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-						1,
-						D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+			device,
+			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+			1,
+			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 
 	size_t num_shapes = model->get_vertex_buffers().size();
 	vertex_buffers.resize(num_shapes);
@@ -290,8 +382,7 @@ void cg::renderer::dx12_renderer::load_assets()
 		// Vertex buffer
 		auto vertex_buffer_data = model->get_vertex_buffers()[i];
 		const UINT vertex_buffer_size = static_cast<UINT>(
-				vertex_buffer_data->get_size_in_bytes()
-				);
+				vertex_buffer_data->get_size_in_bytes());
 		std::wstring vertex_buffer_name(L"Vertex buffer ");
 		vertex_buffer_name += std::to_wstring(i);
 
@@ -308,8 +399,7 @@ void cg::renderer::dx12_renderer::load_assets()
 		// Index buffer
 		auto index_buffer_data = model->get_index_buffers()[i];
 		const UINT index_buffer_size = static_cast<UINT>(
-				index_buffer_data->get_size_in_bytes()
-		);
+				index_buffer_data->get_size_in_bytes());
 		std::wstring index_buffer_name(L"index buffer ");
 		index_buffer_name += std::to_wstring(i);
 
@@ -379,17 +469,17 @@ void cg::renderer::descriptor_heap::create_heap(ComPtr<ID3D12Device>& device, D3
 D3D12_CPU_DESCRIPTOR_HANDLE cg::renderer::descriptor_heap::get_cpu_descriptor_handle(UINT index) const
 {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
-						heap->GetCPUDescriptorHandleForHeapStart(),
-						static_cast<INT>(index),
-						descriptor_size);
+			heap->GetCPUDescriptorHandleForHeapStart(),
+			static_cast<INT>(index),
+			descriptor_size);
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE cg::renderer::descriptor_heap::get_gpu_descriptor_handle(UINT index) const
 {
 	return CD3DX12_GPU_DESCRIPTOR_HANDLE(
-						heap->GetGPUDescriptorHandleForHeapStart(),
-						static_cast<INT>(index),
-						descriptor_size);
+			heap->GetGPUDescriptorHandleForHeapStart(),
+			static_cast<INT>(index),
+			descriptor_size);
 }
 ID3D12DescriptorHeap* cg::renderer::descriptor_heap::get() const
 {
